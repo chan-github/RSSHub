@@ -2,10 +2,10 @@ export default function handler(req, res) {
     const items = [];
     const now = new Date();
     
-    // 获取最近的 5 个周日
+    // 獲取最近的 5 個周日
     for (let i = 0; i < 5; i++) {
         let d = new Date();
-        // 调整到最近的一个周日 (0 是周日)
+        // 調整到最近的一個周日 (0 是周日)
         d.setDate(now.getDate() - (now.getDay() || 7) - (i * 7));
         
         const year = d.getFullYear();
@@ -13,7 +13,8 @@ export default function handler(req, res) {
         const date = String(d.getDate()).padStart(2, '0');
         const formattedDate = `${year}${month}${date}`;
         
-        const url = `https://rthk.hk{formattedDate}&mytime=1000`;
+        // 修正處：將 & 改為 &amp; 以符合 XML 規範
+        const url = `https://rthk.hk{formattedDate}&amp;mytime=1000`;
         const pubDate = d.toUTCString();
 
         items.push(`
@@ -27,7 +28,7 @@ export default function handler(req, res) {
     }
 
     const rss = `<?xml version="1.0" encoding="UTF-8" ?>
-<rss version="2.0">
+<rss version="2.0" xmlns:atom="http://w3.org">
 <channel>
     <title>香港電台：講東講西 - 週日版</title>
     <link>https://rthk.hk</link>
@@ -36,6 +37,6 @@ export default function handler(req, res) {
 </channel>
 </rss>`;
 
-    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.status(200).send(rss);
 }
