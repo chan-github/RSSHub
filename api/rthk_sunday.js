@@ -2,8 +2,8 @@ export default async function handler(req, res) {
     const now = new Date();
     const dates = [];
 
-    // 1. 生成最近 5 個週日
-    for (let i = 0; i < 5; i++) {
+    // 1. 生成最近 20 個週日
+    for (let i = 0; i < 20; i++) {
         let d = new Date();
         let dayOffset = now.getDay();
         d.setDate(now.getDate() - dayOffset - (i * 7));
