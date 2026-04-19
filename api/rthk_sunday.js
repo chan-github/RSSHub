@@ -1,24 +1,26 @@
 export default async function handler(req, res) {
-    const dates = [];
     const now = new Date();
+    const dates = [];
 
     // 1. 生成最近 5 個週日
     for (let i = 0; i < 5; i++) {
         let d = new Date();
         let dayOffset = now.getDay();
         d.setDate(now.getDate() - dayOffset - (i * 7));
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
+        const y = d.getFullYear().toString();
+        const m = (d.getMonth() + 1).toString().padStart(2, '0');
+        const day = d.getDate().toString().padStart(2, '0');
         dates.push({
-            fmt: String(y) + String(m) + String(day),
+            fmt: y + m + day,
             utc: d.toUTCString()
         });
     }
 
     // 2. 抓取數據
     const fetchPromises = dates.map(async (dObj) => {
-        const finalUrl = "https://rthk.hk" + dObj.fmt + "&mytime=1000";
+        // 【核心修正】完全不使用 URLSearchParams 或變量，直接用最原始的字串相加
+        const baseUrl = "https://programme.rthk.hk/channel/radio/player_txt.php";
+        const finalUrl = baseUrl + "?mychannel=radio1&mydate=" + dObj.fmt + "&mytime=1000";
 
         try {
             const response = await fetch(finalUrl, {
@@ -28,24 +30,21 @@ export default async function handler(req, res) {
             
             let episodeName = "";
 
-            // 【核心修正】提取所有 id="programmeText" 的 value 內容
-            // 根據 PDF 原始碼，頁面上有 3 個，第 3 個是我們要的「集數名稱」
+            // 【標題提取】根據 PDF 第 400 行，提取第 3 個 id="programmeText" 的內容
             const valueRegex = /id="programmeText"[^>]+value="([^"]*)"/gi;
+            let match;
             let matches = [];
-            let m;
-            while ((m = valueRegex.exec(html)) !== null) {
-                matches.push(m[1]);
+            while ((match = valueRegex.exec(html)) !== null) {
+                matches.push(match[1]);
             }
 
             if (matches.length >= 3) {
-                // 取第 3 個 (索引為 2)
-                episodeName = matches[2].trim();
+                episodeName = matches[2]; // 第 3 個是集數名稱
             } else if (matches.length > 0) {
-                // 如果不足 3 個，取最後一個
-                episodeName = matches[matches.length - 1].trim();
+                episodeName = matches[matches.length - 1];
             }
 
-            // 清理標題，去掉冗餘字眼
+            // 清理冗餘文字
             if (episodeName) {
                 episodeName = episodeName.replace("講東講西 - 週日版", "").replace("第一台", "").trim();
             }
@@ -58,10 +57,12 @@ export default async function handler(req, res) {
                    "  <link>" + finalUrl.replace(/&/g, "&amp;") + "</link>\n" +
                    "  <guid isPermaLink=\"true\">" + finalUrl.replace(/&/g, "&amp;") + "</guid>\n" +
                    "  <pubDate>" + dObj.utc + "</pubDate>\n" +
-                   "  <description><![CDATA[本集專題：" + displayTitle + "]]></description>\n" +
+                   "  <description><![CDATA[專題：" + displayTitle + "]]></description>\n" +
                    "</item>";
         } catch (e) {
-            return "<item><title>抓取失敗 (" + dObj.fmt + ")</title><link>" + finalUrl.replace(/&/g, "&amp;") + "</link><pubDate>" + dObj.utc + "</pubDate></item>";
+            // 萬一抓取失敗，也要確保連結是正確的
+            const errorUrl = "https://rthk.hk" + dObj.fmt + "&mytime=1000";
+            return "<item><title>抓取失敗 (" + dObj.fmt + ")</title><link>" + errorUrl.replace(/&/g, "&amp;") + "</link><pubDate>" + dObj.utc + "</pubDate></item>";
         }
     });
 
