@@ -1,11 +1,10 @@
 export default function handler(req, res) {
-    const items = [];
     const now = new Date();
-    
-    // 獲取最近 5 個週日
+    const fetchPromises = [];
+
+    // 获取最近 5 个周日的日期
     for (let i = 0; i < 5; i++) {
         let d = new Date();
-        // 邏輯：獲取上一個週日 (getDay為0時代表週日，需特殊處理)
         let dayOffset = now.getDay() === 0 ? 0 : now.getDay();
         d.setDate(now.getDate() - dayOffset - (i * 7));
         
@@ -14,33 +13,53 @@ export default function handler(req, res) {
         const date = String(d.getDate()).padStart(2, '0');
         const formattedDate = `${year}${month}${date}`;
         
-        // 使用更安全的連結組合方式，並確保 &amp; 轉義正確
         const baseUrl = "https://programme.rthk.hk/channel/radio/player_txt.php";
-        const finalUrl = baseUrl + "?mychannel=radio1&amp;mydate=" + formattedDate + "&amp;mytime=1000";
-        
+        const finalUrl = `${baseUrl}?mychannel=radio1&mydate=${formattedDate}&mytime=1000`;
         const pubDate = d.toUTCString();
 
-        items.push(
-            "<item>\n" +
-            "    <title>講東講西 - 週日版 (" + formattedDate + ")</title>\n" +
-            "    <link>" + finalUrl + "</link>\n" +
-            "    <guid isPermaLink=\"true\">" + finalUrl + "</guid>\n" +
-            "    <pubDate>" + pubDate + "</pubDate>\n" +
-            "    <description>點擊訪問 RTHK 無障礙版重溫內容 (" + formattedDate + ")</description>\n" +
-            "</item>"
+        // 建立异步抓取任务：去 RTHK 页面拿标题
+        fetchPromises.push(
+            fetch(finalUrl)
+                .then(response => response.text())
+                .then(html => {
+                    // 使用正则提取 <div class="prog_title">...</div> 中的标题
+                    const titleMatch = html.match(/<div class="prog_title">([\s\S]*?)<\/div>/);
+                    // 如果没抓到标题，就用日期保底
+                    const episodeName = titleMatch ? titleMatch[1].replace(/<(?:.|\n)*?>/gm, '').trim() : `講東講西 (${formattedDate})`;
+                    
+                    return `
+                    <item>
+                        <title>${episodeName}</title>
+                        <link>${finalUrl.replace(/&/g, '&amp;')}</link>
+                        <guid isPermaLink="true">${finalUrl.replace(/&/g, '&amp;')}</guid>
+                        <pubDate>${pubDate}</pubDate>
+                        <description>點擊訪問 RTHK 無障礙版重溫內容 (${formattedDate})</description>
+                    </item>`;
+                })
+                .catch(() => `
+                    <item>
+                        <title>講東講西 - 週日版 (${formattedDate})</title>
+                        <link>${finalUrl.replace(/&/g, '&amp;')}</link>
+                        <guid isPermaLink="true">${finalUrl.replace(/&/g, '&amp;')}</guid>
+                        <pubDate>${pubDate}</pubDate>
+                        <description>抓取標題失敗，請點擊連結查看。</description>
+                    </item>`)
         );
     }
 
-    const rss = `<?xml version="1.0" encoding="UTF-8" ?>
+    // 等所有页面都抓取完后再输出 RSS
+    Promise.all(fetchPromises).then(items => {
+        const rss = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0">
 <channel>
     <title>香港電台：講東講西 - 週日版</title>
     <link>https://rthk.hk</link>
-    <description>Vercel 自動生成：講東講西週日版重溫</description>
+    <description>Vercel 自動抓取標題版：講東講西週日版重溫</description>
     ${items.join('\n')}
 </channel>
 </rss>`;
 
-    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-    res.status(200).send(rss);
+        res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+        res.status(200).send(rss);
+    });
 }
