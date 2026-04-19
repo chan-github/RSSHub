@@ -1,6 +1,21 @@
-    // 2. 爬取並解析
+export default async function handler(req, res) {
+    const now = new Date();
+    const dates = [];
+
+    // 1. 生成日期
+    for (let i = 0; i < 5; i++) {
+        let d = new Date();
+        let dayOffset = now.getDay(); 
+        d.setDate(now.getDate() - dayOffset - (i * 7));
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        dates.push({ fmt: "" + y + m + day, utc: d.toUTCString() });
+    }
+
+    // 2. 爬取數據
     const fetchPromises = dates.map(async (dObj) => {
-        const finalUrl = "https://programme.rthk.hk/channel/radio/player_txt.php?mychannel=radio1&mydate=" + dObj.fmt + "&mytime=1000";
+        const finalUrl = "https://rthk.hk" + dObj.fmt + "&mytime=1000";
 
         try {
             const response = await fetch(finalUrl, {
@@ -10,19 +25,18 @@
             
             let episodeTitle = "";
 
-            // 核心修正：精確匹配 id="programmeText" 的那個 input
-            // 使用更嚴謹的正則，確保只抓取這個 ID 對應的 value
+            // 使用更穩健的正則匹配 id="programmeText" 的 value
             const regex = /id="programmeText"[^>]+value="([^"]+)"/i;
             const match = html.match(regex);
             
             if (match && match[1]) {
-                episodeTitle = match[1].trim();
-                // 過濾掉無意義的重複前綴（如果 RTHK 頁面回傳了冗餘資訊）
-                episodeTitle = episodeTitle.replace("講東講西 - 週日版", "").replace("第一台", "").trim();
+                // 這裡必須用 match[1] 取得括號內的內容
+                let rawTitle = match[1];
+                episodeTitle = rawTitle.replace("講東講西 - 週日版", "").replace("第一台", "").trim();
             }
 
-            // 如果還是抓不到具體名稱，則使用日期保底
-            const displayTitle = (episodeTitle && episodeTitle.length > 1) ? episodeTitle : "週日版";
+            // 確保標題不為空
+            const displayTitle = (episodeTitle && episodeTitle.length > 0) ? episodeTitle : "週日版";
             const finalTitle = "講東講西：" + displayTitle + " (" + dObj.fmt + ")";
 
             return "<item>\n" +
@@ -30,9 +44,27 @@
                    "  <link>" + finalUrl.replace(/&/g, "&amp;") + "</link>\n" +
                    "  <guid isPermaLink=\"true\">" + finalUrl.replace(/&/g, "&amp;") + "</guid>\n" +
                    "  <pubDate>" + dObj.utc + "</pubDate>\n" +
-                   "  <description><![CDATA[講東講西專題：" + (episodeTitle || "重溫") + " (" + dObj.fmt + ")]]></description>\n" +
+                   "  <description><![CDATA[專題：" + displayTitle + "]]></description>\n" +
                    "</item>";
         } catch (e) {
             return "<item><title>講東講西 (" + dObj.fmt + ")</title><link>" + finalUrl.replace(/&/g, "&amp;") + "</link><pubDate>" + dObj.utc + "</pubDate></item>";
         }
     });
+
+    try {
+        const feedItems = await Promise.all(fetchPromises);
+        const rss = '<?xml version="1.0" encoding="UTF-8" ?>\n' +
+                    '<rss version="2.0">\n' +
+                    '<channel>\n' +
+                    '  <title>香港電台：講東講西 - 週日版</title>\n' +
+                    '  <link>https://rthk.hk</link>\n' +
+                    '  ' + feedItems.join('\n') + '\n' +
+                    '</channel>\n' +
+                    '</rss>';
+
+        res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+        res.status(200).send(rss);
+    } catch (err) {
+        res.status(500).send("Internal Server Error");
+    }
+}
