@@ -15,7 +15,7 @@ export default function handler(req, res) {
         const formattedDate = `${year}${month}${date}`;
         
         // 使用更安全的連結組合方式，並確保 &amp; 轉義正確
-        const baseUrl = "https://rthk.hk";
+        const baseUrl = "https://programme.rthk.hk/channel/radio/player_txt.php";
         const finalUrl = baseUrl + "?mychannel=radio1&amp;mydate=" + formattedDate + "&amp;mytime=1000";
         
         const pubDate = d.toUTCString();
