@@ -2,7 +2,6 @@ export default async function handler(req, res) {
     const dates = [];
     const now = new Date();
 
-    // 1. 生成日期字串
     for (let i = 0; i < 5; i++) {
         let d = new Date();
         let dayOffset = now.getDay();
@@ -16,9 +15,7 @@ export default async function handler(req, res) {
         });
     }
 
-    // 2. 抓取數據
     const fetchPromises = dates.map(async (dObj) => {
-        // 【核心修正】不使用任何拼接符號，改用 URLSearchParams 確保連結完整
         const base = "https://programme.rthk.hk/channel/radio/player_txt.php";
         const params = new URLSearchParams({
             mychannel: "radio1",
@@ -29,45 +26,43 @@ export default async function handler(req, res) {
 
         try {
             const response = await fetch(finalUrl, {
-                headers: { 'User-Agent': 'Mozilla/5.0' }
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
             });
             const html = await response.text();
             
             let episodeTitle = "";
-            // 【標題提取】直接針對 <input id="programmeText" ... value="...">
-            if (html.includes('id="programmeText"')) {
-                const parts = html.split('id="programmeText"');
-                if (parts[1].includes('value="')) {
-                    const valueParts = parts[1].split('value="');
-                    const contentParts = valueParts[1].split('"');
-                    episodeTitle = contentParts[0].trim();
-                }
+
+            // 【終極正則】直接找含有 programmeText 的 input 標籤並抓取其 value 屬性
+            // 無論 value 在 id 前面還是後面都能抓到
+            const regex = /<input[^>]*id="programmeText"[^>]*value="([^"]+)"/i;
+            const match = html.match(regex);
+            
+            if (match && match[1]) {
+                episodeTitle = match[1]
+                    .replace("講東講西 - 週日版", "")
+                    .replace("第一台", "")
+                    .replace("講東講西", "")
+                    .replace(":", "")
+                    .replace("：", "")
+                    .trim();
             }
 
-            // 清理標題文字
-            if (episodeTitle) {
-                episodeTitle = episodeTitle.replace("講東講西 - 週日版", "").replace("第一台", "").trim();
-            }
-            if (!episodeTitle || episodeTitle.length < 1) {
-                episodeTitle = "週日版";
-            }
-
-            const finalTitle = "講東講西：" + episodeTitle + " (" + dObj.fmt + ")";
+            const displayTitle = (episodeTitle && episodeTitle.length > 0) ? episodeTitle : "週日版";
+            const finalTitle = "講東講西：" + displayTitle + " (" + dObj.fmt + ")";
 
             return "<item>\n" +
                    "  <title><![CDATA[" + finalTitle + "]]></title>\n" +
                    "  <link>" + finalUrl.replace(/&/g, "&amp;") + "</link>\n" +
                    "  <guid isPermaLink=\"true\">" + finalUrl.replace(/&/g, "&amp;") + "</guid>\n" +
                    "  <pubDate>" + dObj.utc + "</pubDate>\n" +
-                   "  <description><![CDATA[專題內容：" + episodeTitle + "]]></description>\n" +
+                   "  <description><![CDATA[專題主題：" + displayTitle + "]]></description>\n" +
                    "</item>";
         } catch (e) {
-            return "<item><title>抓取失敗 (" + dObj.fmt + ")</title><link>" + finalUrl.replace(/&/g, "&amp;") + "</link><pubDate>" + dObj.utc + "</pubDate></item>";
+            return "<item><title>暫時無法獲取 (" + dObj.fmt + ")</title><link>" + finalUrl.replace(/&/g, "&amp;") + "</link><pubDate>" + dObj.utc + "</pubDate></item>";
         }
     });
 
     const feedItems = await Promise.all(fetchPromises);
-
     const rss = '<?xml version="1.0" encoding="UTF-8" ?>\n' +
                 '<rss version="2.0">\n' +
                 '<channel>\n' +
