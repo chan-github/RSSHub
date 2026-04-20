@@ -29,7 +29,7 @@ export default async function handler(req, res) {
 
     // 2. 批量抓取與解析 (並行處理)
     const fetchPromises = dates.map(async (dObj) => {
-        const baseUrl = "https://rthk.hk";
+        const baseUrl = "https://programme.rthk.hk/channel/radio/player_txt.php";
         const finalUrl = baseUrl + "?mychannel=radio1&mydate=" + dObj.fmt + "&mytime=2235";
 
         try {
