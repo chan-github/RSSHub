@@ -5,8 +5,8 @@ export default async function handler(req, res) {
     // 核心修改：從 1 開始，代表跳過今天 (Now)，從昨天開始計算
     let offset = 1; 
 
-    // 1. 循環尋找最近的 30 個工作日 (週一至週五)
-    while (count < 80) {
+    // 1. 循環尋找最近的 50 個工作日 (週一至週五)
+    while (count < 50) {
         let d = new Date();
         d.setDate(now.getDate() - offset);
         const dayOfWeek = d.getDay(); // 0 是週日, 6 是週六
@@ -23,8 +23,8 @@ export default async function handler(req, res) {
             count++;
         }
         offset++;
-        // 安全機制：查找範圍擴大到 60 天以確保能湊齊 30 個工作日
-        if (offset > 120) break;
+        // 安全機制：查找範圍擴大到 100 天以確保能湊齊 50 個工作日
+        if (offset > 100) break;
     }
 
     // 2. 批量抓取與解析 (並行處理)
