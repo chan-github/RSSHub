@@ -2,7 +2,8 @@ export default async function handler(req, res) {
     const now = new Date();
     const dates = [];
     let count = 0;
-    let offset = 0;
+    // 核心修改：從 1 開始，代表跳過今天 (Now)，從昨天開始計算
+    let offset = 1; 
 
     // 1. 循環尋找最近的 30 個工作日 (週一至週五)
     while (count < 80) {
@@ -22,13 +23,13 @@ export default async function handler(req, res) {
             count++;
         }
         offset++;
-        // 安全機制：防止無限循環
-        if (offset > 100) break;
+        // 安全機制：查找範圍擴大到 60 天以確保能湊齊 30 個工作日
+        if (offset > 60) break;
     }
 
-    // 2. 批量抓取與解析
+    // 2. 批量抓取與解析 (並行處理)
     const fetchPromises = dates.map(async (dObj) => {
-        const baseUrl = "https://programme.rthk.hk/channel/radio/player_txt.php";
+        const baseUrl = "https://rthk.hk";
         const finalUrl = baseUrl + "?mychannel=radio1&mydate=" + dObj.fmt + "&mytime=2235";
 
         try {
@@ -42,14 +43,14 @@ export default async function handler(req, res) {
             let match;
             let matches = [];
             while ((match = valueRegex.exec(html)) !== null) {
-                matches.push(match);
+                matches.push(match[1]); // 取得括號內的內容
             }
 
-            // 根據之前的經驗，第 3 個 (index 2) 是真正的專題名稱
+            // 平日版通常也是第 3 個 id="programmeText" 是專題名稱
             if (matches.length >= 3) {
-                episodeName = matches[2][1];
+                episodeName = matches[2];
             } else if (matches.length > 0) {
-                episodeName = matches[matches.length - 1][1];
+                episodeName = matches[matches.length - 1];
             }
 
             if (episodeName) {
@@ -64,10 +65,10 @@ export default async function handler(req, res) {
                    "  <link>" + finalUrl.replace(/&/g, "&amp;") + "</link>\n" +
                    "  <guid isPermaLink=\"true\">" + finalUrl.replace(/&/g, "&amp;") + "</guid>\n" +
                    "  <pubDate>" + dObj.utc + "</pubDate>\n" +
-                   "  <description><![CDATA[專題：" + displayTitle + "]]></description>\n" +
+                   "  <description><![CDATA[專題內容：" + displayTitle + "]]></description>\n" +
                    "</item>";
         } catch (e) {
-            return "<item><title>暫時無法獲取 (" + dObj.fmt + ")</title><link>" + finalUrl.replace(/&/g, "&amp;") + "</link><pubDate>" + dObj.utc + "</pubDate></item>";
+            return "<item><title>抓取失敗 (" + dObj.fmt + ")</title><link>" + finalUrl.replace(/&/g, "&amp;") + "</link><pubDate>" + dObj.utc + "</pubDate></item>";
         }
     });
 
@@ -78,6 +79,7 @@ export default async function handler(req, res) {
                 '<channel>\n' +
                 '  <title>香港電台：講東講西 - 平日版</title>\n' +
                 '  <link>https://rthk.hk</link>\n' +
+                '  <description>已跳過當天節目，僅收錄已播完之重溫</description>\n' +
                 '  ' + feedItems.join('\n') + '\n' +
                 '</channel>\n' +
                 '</rss>';
