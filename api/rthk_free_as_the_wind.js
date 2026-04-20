@@ -5,7 +5,7 @@ export default async function handler(req, res) {
     let offset = 0;
 
     // 1. 循環尋找最近的 30 個工作日 (週一至週五)
-    while (count < 30) {
+    while (count < 80) {
         let d = new Date();
         d.setDate(now.getDate() - offset);
         const dayOfWeek = d.getDay(); // 0 是週日, 6 是週六
