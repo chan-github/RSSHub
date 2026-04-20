@@ -4,8 +4,8 @@ export default async function handler(req, res) {
     let count = 0;
     let offset = 0; 
 
-    // 1. 循環尋找最近的 30 個週六 (Saturday)
-    while (count < 30) {
+    // 1. 循環尋找最近的 10 個週六 (Saturday)
+    while (count < 10) {
         let d = new Date();
         d.setDate(now.getDate() - offset);
         
@@ -27,8 +27,8 @@ export default async function handler(req, res) {
             }
         }
         offset++;
-        // 找 30 個週六大約需要 210 天，安全機制設為 300
-        if (offset > 300) break;
+        // 找 10 個週六大約需要 70 天，安全機制設為 100
+        if (offset > 100) break;
     }
 
     // 2. 批量抓取與解析
@@ -84,7 +84,7 @@ export default async function handler(req, res) {
                 '<channel>\n' +
                 '  <title>香港電台：古今風雲人物</title>\n' +
                 '  <link>https://rthk.hk</link>\n' +
-                '  <description>自動生成：最近 30 集週六重溫</description>\n' +
+                '  <description>自動生成：最近 10 集週六重溫</description>\n' +
                 '  ' + feedItems.join('\n') + '\n' +
                 '</channel>\n' +
                 '</rss>';
