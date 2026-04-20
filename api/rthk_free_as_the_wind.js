@@ -24,7 +24,7 @@ export default async function handler(req, res) {
         }
         offset++;
         // 安全機制：查找範圍擴大到 60 天以確保能湊齊 30 個工作日
-        if (offset > 60) break;
+        if (offset > 120) break;
     }
 
     // 2. 批量抓取與解析 (並行處理)
